@@ -1,0 +1,63 @@
+{
+  "app_name": "SwachhLens",
+  "app_type": "hybrid_fullstack mobile Expo app & web operations decision support system",
+  "theme": {
+    "archetype": "ARCHETYPE 1: ORGANIC & EARTHY (Trust, Growth, Calm) with Eco-Modern Municipal Vibe",
+    "primary_color": "#15803d",
+    "primary_light": "#dcfce7",
+    "secondary_color": "#0284c7",
+    "accent_color": "#f59e0b",
+    "background_color": "#f8fafc",
+    "surface_color": "#ffffff",
+    "text_primary": "#0f172a",
+    "text_secondary": "#475569",
+    "border_color": "#e2e8f0"
+  },
+  "typography": {
+    "font_family_heading": "Outfit, sans-serif",
+    "font_family_body": "Inter, sans-serif",
+    "font_family_mono": "JetBrains Mono, monospace",
+    "scale": {
+      "h1": "text-4xl sm:text-5xl lg:text-6xl tracking-tight font-extrabold",
+      "h2": "text-2xl sm:text-3xl lg:text-4xl tracking-tight font-bold",
+      "h3": "text-xl sm:text-2xl font-bold",
+      "h4": "text-lg sm:text-xl font-semibold",
+      "body": "text-base text-slate-700 leading-relaxed",
+      "small": "text-sm text-slate-500"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "backdrop-blur-xl bg-white/80 border border-white/20 shadow-sm",
+    "bento_grid": "grid grid-cols-1 md:grid-cols-12 gap-6",
+    "card_style": "bg-white border border-slate-200/80 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200",
+    "badge_style": "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider"
+  },
+  "component_path": "/app/frontend/src/components",
+  "image_urls": [
+    {
+      "category": "urban_cleanup",
+      "description": "Urban waste management cleanup street",
+      "url": "https://images.unsplash.com/photo-1762805545352-4ac5355b0f0b?crop=entropy&cs=srgb&fm=jpg&q=85"
+    },
+    {
+      "category": "municipal_dashboard",
+      "description": "Smart city sanitation dashboard & map analytics",
+      "url": "https://images.unsplash.com/photo-1587400563356-2f6cf901cfbb?crop=entropy&cs=srgb&fm=jpg&q=85"
+    }
+  ],
+  "instructions_to_main_agent": [
+    "Build a fully responsive React app supporting both Mobile App Simulation view and Municipal Operations Dashboard view with role switching (Citizen, Municipal Staff, Recycling Partner).",
+    "Implement AI-powered waste response decision support system with features: camera/photo capture, live GPS coordinates, category selection (overflowing bin, garbage dump, plastic, construction debris, organic, e-waste, hazardous, drain blockage), volume estimation, duplicate detection, severity scoring (1-10), and recommended interventions.",
+    "Include real-time notification toasts using sonner, interactive maps/hotspots, assignee vehicle routing, verification cleanup photo upload, and citizen reward points leaderboards.",
+    "Ensure all interactive and key informational elements include data-testid attributes for robust automated testing.",
+    "Never use full transparency on headers or overlays; ensure high contrast WCAG compliance."
+  ],
+  "universal_guidelines": [
+    "Avoid generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters.",
+    "Never use universal transition (transition: all).",
+    "Always use modern button styles with hover/press micro-animations.",
+    "Every interactive element must include data-testid attributes."
+  ]
+}

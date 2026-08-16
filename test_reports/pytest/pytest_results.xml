@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="0.379" timestamp="2026-08-16T06:32:25.781898+00:00" hostname="agent-env-be43954f-4bdc-40b7-a166-50f836a16dd1"><testcase classname="backend_test_swachhlens" name="test_report_crud_and_dashboard" time="0.327" /></testsuite></testsuites>
