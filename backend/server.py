@@ -68,6 +68,7 @@ class Report(BaseModel):
     assigned_team: Optional[str] = None
     vehicle: Optional[str] = None
     verified_at: Optional[str] = None
+    verification_image_base64: Optional[str] = None
 
 
 def analyze_report(payload: ReportCreate, duplicate: bool = False) -> dict:
@@ -121,6 +122,11 @@ async def get_report(report_id: str):
 
 @api_router.patch("/reports/{report_id}", response_model=Report)
 async def update_report(report_id: str, payload: ReportUpdate):
+    existing = await db.reports.find_one({"id": report_id}, {"_id": 0, "id": 1, "verification_image_base64": 1})
+    if not existing:
+        raise HTTPException(404, "Report not found")
+    if payload.status == "Resolved" and not (payload.verification_image_base64 or existing.get("verification_image_base64")):
+        raise HTTPException(400, "Cleanup verification evidence is required before resolving a report")
     changes = {key: value for key, value in payload.model_dump().items() if value is not None}
     if payload.status == "Resolved":
         changes["verified_at"] = datetime.now(timezone.utc).isoformat()
@@ -130,15 +136,16 @@ async def update_report(report_id: str, payload: ReportUpdate):
 
 @api_router.get("/dashboard")
 async def dashboard():
-    docs = await db.reports.find({}, {"_id": 0, "status": 1, "severity": 1, "category_label": 1, "location_label": 1}).to_list(1000)
+    docs = await db.reports.find({}, {"_id": 0, "status": 1, "severity": 1, "category_label": 1, "location_label": 1, "latitude": 1, "longitude": 1}).to_list(1000)
     open_reports = [doc for doc in docs if doc.get("status") != "Resolved"]
     hotspots = {}
     for doc in open_reports:
         label = doc.get("location_label") or "Unmapped area"
-        hotspots[label] = hotspots.get(label, 0) + 1
+        item = hotspots.setdefault(label, {"label": label, "count": 0, "latitude": doc.get("latitude", 19.076), "longitude": doc.get("longitude", 72.8777)})
+        item["count"] += 1
     return {"total": len(docs), "open": len(open_reports), "urgent": sum(doc.get("severity", 0) >= 8 for doc in open_reports),
             "resolved": sum(doc.get("status") == "Resolved" for doc in docs),
-            "hotspots": [{"label": label, "count": count} for label, count in sorted(hotspots.items(), key=lambda item: -item[1])[:5]]}
+            "hotspots": sorted(hotspots.values(), key=lambda item: -item["count"])[:5]}
 
 
 app.include_router(api_router)

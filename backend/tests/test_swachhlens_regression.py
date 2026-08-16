@@ -15,5 +15,7 @@ def test_report_ai_analysis_and_lifecycle():
     report=c.json(); assert report["category_label"]=="Hazardous waste"; assert report["severity"]==10; assert report["recommended_action"]
     rid=report["id"]
     g=requests.get(f"{BASE_URL}/api/reports/{rid}",timeout=15); assert g.status_code==200 and g.json()["description"]==payload["description"]
-    u=requests.patch(f"{BASE_URL}/api/reports/{rid}",json={"status":"Resolved","assigned_team":"TEST team"},timeout=15); assert u.status_code==200
-    updated=u.json(); assert updated["status"]=="Resolved" and updated["assigned_team"]=="TEST team" and updated["verified_at"]
+    rejected=requests.patch(f"{BASE_URL}/api/reports/{rid}",json={"status":"Resolved","assigned_team":"TEST team"},timeout=15)
+    assert rejected.status_code==400
+    u=requests.patch(f"{BASE_URL}/api/reports/{rid}",json={"status":"Resolved","assigned_team":"TEST team","verification_image_base64":"TEST_evidence"},timeout=15); assert u.status_code==200
+    updated=u.json(); assert updated["status"]=="Resolved" and updated["assigned_team"]=="TEST team" and updated["verified_at"] and updated["verification_image_base64"]=="TEST_evidence"

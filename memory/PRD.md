@@ -31,16 +31,23 @@ SwachhLens is an AI-powered waste response decision support system. Citizens rep
 - Added accessibility-friendly touch targets, test IDs, loading states, empty states, and press feedback.
 - Verified with API regression and Expo preview testing at 390x844; no mocked APIs.
 
+## Implemented (2026-08-17)
+- Added report detail response actions: staff assign a response team and vehicle, then dispatch or verify cleanup.
+- Added mandatory cleanup verification photo capture before a report can be marked Resolved.
+- Enforced verification safety on the backend: `PATCH /api/reports/{id}` rejects a `Resolved` status unless base64 cleanup evidence exists, and stamps `verified_at`.
+- Added a live hotspot map on the operations overview driven by open-report location clusters from `/api/dashboard`.
+- Added in-app urgent-report alert banner for staff (severity >= 8, unresolved) that deep-links into the response actions.
+
 ## Prioritized backlog
-- P0: Persist authenticated accounts and role permissions (email/phone account flow from the brief).
-- P0: Add report detail screen with staff assignment controls and cleanup verification photo submission.
-- P1: Add map view with clustered hotspots and route context for teams/partners.
+- P0: Persist authenticated accounts and role permissions (email/phone account flow from the brief) with server-enforced role access.
 - P1: Replace deterministic analysis with a production computer-vision/LLM service after credentials and provider are selected.
-- P1: Add push/in-app notifications for urgent escalation and status changes.
+- P1: Replace the in-app urgent banner with real push notifications once the app is built on a real device.
+- P1: Upgrade the illustrative hotspot map to a real map (react-native-maps) with clustered pins and route context.
 - P2: Add citizen leaderboard and verified impact history.
 - P2: Add report deletion/retention tooling for test and privacy management.
+- P2: Refactor `frontend/app/index.tsx` into modular screen files (citizen home, staff dashboard, map, report detail, composer).
 
 ## Next tasks
-1. Implement authentication and server-enforced role access.
-2. Add actionable report details and assignment/verification UI.
-3. Add map and notifications after the core operational workflow is reviewed.
+1. Implement authentication and server-enforced role access (email/phone account flow).
+2. Move deterministic analysis to a real AI provider once credentials are chosen.
+3. Upgrade hotspot map to react-native-maps and add real push notifications on a native build.

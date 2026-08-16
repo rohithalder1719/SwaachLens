@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="2" time="0.389" timestamp="2026-08-16T06:40:06.083174+00:00" hostname="agent-env-be43954f-4bdc-40b7-a166-50f836a16dd1"><testcase classname="tests.test_swachhlens_regression" name="test_live_dashboard_and_reports" time="0.001"><failure message="assert None">backend/tests/test_swachhlens_regression.py:6: in test_live_dashboard_and_reports
+    assert BASE_URL
+E   assert None</failure></testcase><testcase classname="tests.test_swachhlens_regression" name="test_report_ai_analysis_and_lifecycle" time="0.001"><failure message="requests.exceptions.MissingSchema: Invalid URL 'None/api/reports': No scheme supplied. Perhaps you meant https://None/api/reports?">backend/tests/test_swachhlens_regression.py:14: in test_report_ai_analysis_and_lifecycle
+    c=requests.post(f"{BASE_URL}/api/reports",json=payload,timeout=15); assert c.status_code == 200
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/api.py:134: in post
+    return request("post", url, data=data, json=json, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/api.py:71: in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:635: in request
+    prep = self.prepare_request(req)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:541: in prepare_request
+    p.prepare(
+/root/.venv/lib/python3.11/site-packages/requests/models.py:439: in prepare
+    self.prepare_url(url, params)
+/root/.venv/lib/python3.11/site-packages/requests/models.py:514: in prepare_url
+    raise MissingSchema(
+E   requests.exceptions.MissingSchema: Invalid URL 'None/api/reports': No scheme supplied. Perhaps you meant https://None/api/reports?</failure></testcase></testsuite></testsuites>
