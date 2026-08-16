@@ -35,10 +35,10 @@ STATUS_FLOW = ["Reported", "Assigned", "In Progress", "Resolved"]
 CATEGORIES = {
     "overflowing_bin": ("Overflowing bin", 7, "Assign a sanitation team and mini truck"),
     "garbage_dump": ("Garbage dump", 8, "Dispatch extra workers and a mini truck"),
-    "plastic_waste": ("Plastic waste", 6, "Route recyclable-heavy waste to a recycling partner"),
+    "plastic_waste": ("Plastic waste", 6, "Assign the municipal recycling crew"),
     "construction_debris": ("Construction debris", 7, "Dispatch a debris vehicle and two workers"),
     "organic_waste": ("Organic waste", 5, "Schedule a wet-waste collection run"),
-    "e_waste": ("E-waste", 8, "Escalate to an authorized e-waste partner"),
+    "e_waste": ("E-waste", 8, "Assign the municipal e-waste handling team"),
     "hazardous_waste": ("Hazardous waste", 10, "Escalate immediately to the safety response team"),
     "drain_blockage": ("Drain blockage", 9, "Escalate to drain response and road safety team"),
 }

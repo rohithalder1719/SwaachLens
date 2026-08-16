@@ -12,8 +12,7 @@ SwachhLens is an AI-powered waste response decision support system. Citizens rep
 
 ## User personas
 - Citizen reporter: notices a cleanliness issue, submits evidence, and tracks community impact.
-- Municipal operations staff: reviews priority signals, hotspots, and response teams.
-- Recycling partner: views the partner workspace context for recyclable-heavy response coordination.
+- Municipal operations staff: reviews priority signals, hotspots, and response teams, and handles all cleanup execution end to end.
 
 ## Core requirements
 - Role-aware mobile entry for citizens, municipal staff, and recycling partners.
