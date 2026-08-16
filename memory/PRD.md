@@ -38,16 +38,22 @@ SwachhLens is an AI-powered waste response decision support system. Citizens rep
 - Added a live hotspot map on the operations overview driven by open-report location clusters from `/api/dashboard`.
 - Added in-app urgent-report alert banner for staff (severity >= 8, unresolved) that deep-links into the response actions.
 
+## Implemented (2026-08-16 · accounts + AI + status)
+- Added authentication: email/password (bcrypt) signup & login plus Emergent-managed Google one-tap login, unified 7-day session tokens.
+- Roles stored on each account (citizen / staff); staff access is gated by a shared municipal invite code (`STAFF_INVITE_CODE`), enforced at signup and via an in-app "Become municipal staff" upgrade (`/api/auth/claim-staff`).
+- Server-enforced RBAC: citizens see only their own reports; `/api/dashboard` and report PATCH are staff-only.
+- Smart photo analysis: new reports with a photo are analyzed by Gemini 3 Flash (`gemini-3-flash-preview`) to auto-detect waste type, severity (1-10), volume, a recommended action, and a scene summary — with a deterministic fallback when no image/AI is available (`ai_powered` flag).
+- Live status timeline: reports move Reported → Assigned → In Progress → Resolved, each stage stamped in `status_history`; citizens track progress in a report-detail timeline.
+- Verified end-to-end: 14 backend + 13 frontend checks passed (iteration 5).
+
 ## Prioritized backlog
-- P0: Persist authenticated accounts and role permissions (email/phone account flow from the brief) with server-enforced role access.
-- P1: Replace deterministic analysis with a production computer-vision/LLM service after credentials and provider are selected.
-- P1: Replace the in-app urgent banner with real push notifications once the app is built on a real device.
-- P1: Upgrade the illustrative hotspot map to a real map (react-native-maps) with clustered pins and route context.
-- P2: Add citizen leaderboard and verified impact history.
-- P2: Add report deletion/retention tooling for test and privacy management.
-- P2: Refactor `frontend/app/index.tsx` into modular screen files (citizen home, staff dashboard, map, report detail, composer).
+- P1: Replace the illustrative hotspot map with react-native-maps (clustered pins, routes).
+- P1: Replace the in-app urgent banner with real push notifications on a native build.
+- P2: Citizen leaderboard and verified impact history.
+- P2: Report deletion/retention tooling for privacy management.
+- P2: Refactor `frontend/app/index.tsx` into modular screen files.
 
 ## Next tasks
-1. Implement authentication and server-enforced role access (email/phone account flow).
-2. Move deterministic analysis to a real AI provider once credentials are chosen.
-3. Upgrade hotspot map to react-native-maps and add real push notifications on a native build.
+1. Upgrade hotspot map to react-native-maps and add real push notifications on a native build.
+2. Add citizen rewards/leaderboard tied to resolved reports.
+3. Modularize the large index.tsx screen file.
