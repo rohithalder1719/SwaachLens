@@ -46,6 +46,12 @@ SwachhLens is an AI-powered waste response decision support system. Citizens rep
 - Live status timeline: reports move Reported → Assigned → In Progress → Resolved, each stage stamped in `status_history`; citizens track progress in a report-detail timeline.
 - Verified end-to-end: 14 backend + 13 frontend checks passed (iteration 5).
 
+## Implemented (2026-08-16 · real hotspot map)
+- Replaced the illustrative hotspot map with a real zoomable map (`react-native-maps` 1.26) showing severity-colored clustered pins; tapping a pin opens a callout with a "Get directions" action that launches the device's preferred maps app (Apple Maps on iOS, Google Maps/geo on Android).
+- Backend now clusters open reports into ~110m geo-cells with a per-cluster count and max severity (`/api/dashboard` hotspots).
+- Graceful fallback on web and inside Expo Go (native maps are disabled there): a stylized hotspot board plus a tappable hotspot list where each row has its own Directions button — directions work everywhere.
+- Android builds read the Google Maps key from `GOOGLE_MAPS_API_KEY` via `app.config.js`; iOS uses Apple Maps (no key).
+
 ## Prioritized backlog
 - P1: Replace the illustrative hotspot map with react-native-maps (clustered pins, routes).
 - P1: Replace the in-app urgent banner with real push notifications on a native build.

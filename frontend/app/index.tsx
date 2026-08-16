@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Image, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { useAuth } from "@/src/auth/AuthContext";
+import HotspotMap from "@/src/components/HotspotMap";
 import AuthScreen from "@/src/screens/AuthScreen";
 
 const GREEN = "#15803d";
@@ -31,7 +32,7 @@ function MainApp() {
   const role = user!.role;
   const [tab, setTab] = useState("home");
   const [reports, setReports] = useState<Report[]>([]);
-  const [dashboard, setDashboard] = useState({ total: 0, open: 0, urgent: 0, resolved: 0, hotspots: [] as { label: string; count: number; latitude: number; longitude: number }[] });
+  const [dashboard, setDashboard] = useState({ total: 0, open: 0, urgent: 0, resolved: 0, hotspots: [] as { label: string; count: number; latitude: number; longitude: number; severity?: number }[] });
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
 
@@ -88,6 +89,7 @@ function StaffHome({ dashboard, reports, onRefresh, tab, onSelectReport }: { das
   <View style={styles.staffBanner}><View><Text style={styles.cardKicker}>LIVE OPERATIONS</Text><Text style={styles.staffBannerTitle}>{dashboard.open} open reports</Text><Text style={styles.staffBannerBody}>{dashboard.urgent} need urgent attention</Text></View><Pressable testID="refresh-dashboard" onPress={onRefresh} style={styles.refresh}><Feather name="refresh-cw" size={19} color="#fff" /></Pressable></View>
   {urgent.length > 0 && <Pressable testID="urgent-alert" onPress={() => onSelectReport(urgent[0])} style={styles.alertBanner}><View style={styles.alertIcon}><Feather name="bell" size={18} color="#b91c1c" /></View><View style={{ flex: 1 }}><Text style={styles.alertTitle}>{urgent.length} urgent signal{urgent.length > 1 ? "s" : ""} need attention</Text><Text style={styles.alertBody}>Tap to review and dispatch a response.</Text></View><Feather name="chevron-right" size={18} color="#b91c1c" /></Pressable>}
   <View style={styles.statsGrid}><Metric value={dashboard.total} label="Total signals" icon="inbox" /><Metric value={dashboard.urgent} label="Urgent" icon="alert-triangle" danger /><Metric value={dashboard.resolved} label="Resolved" icon="check-circle" /><Metric value={dashboard.hotspots.length} label="Hotspots" icon="map" /></View>
+  <SectionTitle title="Live hotspot map" action="Updated just now" />
   <HotspotMap hotspots={dashboard.hotspots} />
   <SectionTitle title="Priority queue" action="Sort: severity" />{urgent.length === 0 && reports.length === 0 ? <EmptyState title="No reports yet" body="Citizen signals will appear here as they come in." /> : (urgent.length ? urgent : reports).slice(0, 5).map(report => <ReportRow key={report.id} report={report} staff onPress={() => onSelectReport(report)} />)}
 </>; }
@@ -100,8 +102,6 @@ function EmptyState({ title = "Your reports will appear here", body = "Take the 
 
 function StatusPill({ status }: { status: string }) { const urgent = status === "Reported"; const done = status === "Resolved"; return <View style={[styles.status, urgent && styles.urgentStatus, done && styles.doneStatus]}><Text style={[styles.statusText, urgent && styles.urgentText, done && styles.doneText]}>{status}</Text></View> }
 function ReportRow({ report, staff, onPress }: { report: Report; staff?: boolean; onPress?: () => void }) { const content = <>{report.image_base64 ? <Image source={{ uri: `data:image/jpeg;base64,${report.image_base64}` }} style={styles.thumb} /> : <View style={styles.thumbFallback}><Feather name="image" size={20} color="#94a3b8" /></View>}<View style={{ flex: 1 }}><View style={styles.rowTop}><Text style={styles.reportCategory}>{report.category_label}</Text><StatusPill status={report.status} /></View><Text style={styles.reportLocation}><Feather name="map-pin" size={12} color="#64748b" /> {report.location_label}</Text><Text style={styles.reportMeta}>{report.volume} volume · severity {report.severity}/10{report.ai_powered ? " · AI" : ""}{staff && report.assigned_team ? ` · ${report.assigned_team}` : ""}</Text>{onPress && <Text style={styles.viewDetails}>{staff ? "Open response actions" : "Track progress"} <Feather name="arrow-up-right" size={12} color={GREEN} /></Text>}</View></>; return onPress ? <Pressable testID={`report-${report.id}`} onPress={onPress} style={({ pressed }) => [styles.reportRow, pressed && styles.pressed]}>{content}</Pressable> : <View testID={`report-${report.id}`} style={styles.reportRow}>{content}</View> }
-
-function HotspotMap({ hotspots }: { hotspots: { label: string; count: number; latitude: number; longitude: number }[] }) { return <><SectionTitle title="Live hotspot map" action="Updated just now" /><View testID="hotspot-map" style={styles.mapCard}><View style={styles.mapGrid}><View style={styles.mapRoadA} /><View style={styles.mapRoadB} />{hotspots.map((hotspot, index) => <View key={hotspot.label} style={[styles.mapPin, { left: `${18 + (index * 19) % 67}%`, top: `${25 + (index * 23) % 48}%` }]}><View style={styles.pinPulse}><Feather name="map-pin" size={17} color="#fff" /></View><Text style={styles.pinCount}>{hotspot.count}</Text></View>)}</View><View style={styles.mapLegend}><View style={styles.legendDot} /><Text style={styles.legendText}>{hotspots.length} active hotspot{hotspots.length === 1 ? "" : "s"}</Text><Text style={styles.mapCoords}>19.076° N · 72.878° E</Text></View></View></> }
 
 function StatusTimeline({ report }: { report: Report }) {
   const currentIndex = STAGES.indexOf(report.status);

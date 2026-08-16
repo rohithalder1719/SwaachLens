@@ -412,19 +412,26 @@ async def dashboard(user: dict = Depends(require_staff)):
         {}, {"_id": 0, "status": 1, "severity": 1, "location_label": 1, "latitude": 1, "longitude": 1}
     ).to_list(1000)
     open_reports = [d for d in docs if d.get("status") != "Resolved"]
-    hotspots: dict = {}
+    buckets: dict = {}
     for d in open_reports:
-        label = d.get("location_label") or "Unmapped area"
-        item = hotspots.setdefault(label, {"label": label, "count": 0,
-                                           "latitude": d.get("latitude", 19.076),
-                                           "longitude": d.get("longitude", 72.8777)})
+        lat = float(d.get("latitude", 19.076))
+        lng = float(d.get("longitude", 72.8777))
+        key = (round(lat, 3), round(lng, 3))  # ~110m geo-cell cluster
+        item = buckets.get(key)
+        if not item:
+            item = {"label": d.get("location_label") or "Unmapped area", "count": 0,
+                    "latitude": lat, "longitude": lng, "severity": 0}
+            buckets[key] = item
         item["count"] += 1
+        item["severity"] = max(item["severity"], int(d.get("severity", 0)))
+        if item["label"] in ("Unmapped area", "Location unavailable") and d.get("location_label"):
+            item["label"] = d["location_label"]
     return {
         "total": len(docs),
         "open": len(open_reports),
         "urgent": sum(d.get("severity", 0) >= 8 for d in open_reports),
         "resolved": sum(d.get("status") == "Resolved" for d in docs),
-        "hotspots": sorted(hotspots.values(), key=lambda i: -i["count"])[:5],
+        "hotspots": sorted(buckets.values(), key=lambda i: (-i["count"], -i["severity"]))[:8],
     }
 
 
