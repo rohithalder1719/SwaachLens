@@ -22,21 +22,46 @@ export function severityColor(sev?: number) {
   return "#0284c7";
 }
 
-// Rendered on web and inside Expo Go where native maps do not load.
+// Real interactive Leaflet + OpenStreetMap map (no API key, works in Expo Go and web).
+// `web=true` opens directions in a new browser tab; native posts a message back to RN.
+export function buildLeafletHtml(hotspots: Hotspot[], web: boolean) {
+  const data = JSON.stringify(hotspots || []);
+  const dirAction = web
+    ? "window.open('https://www.google.com/maps/dir/?api=1&destination='+h.latitude+','+h.longitude, '_blank');"
+    : "if(window.ReactNativeWebView){window.ReactNativeWebView.postMessage(JSON.stringify(h));}";
+  return `<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>html,body,#map{height:100%;margin:0;padding:0;background:#e2e8f0}
+.leaflet-popup-content{margin:10px 12px;font-family:-apple-system,Roboto,sans-serif;font-size:13px}
+.dir-btn{display:block;margin-top:8px;background:#15803d;color:#fff;text-align:center;padding:8px;border-radius:8px;font-weight:700;text-decoration:none}</style>
+</head><body><div id="map"></div><script>
+function esc(s){return String(s||'').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+var hs = ${data};
+var map = L.map('map', {zoomControl:true, attributionControl:false});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19}).addTo(map);
+var bounds = [];
+hs.forEach(function(h, i){
+  var color = h.severity>=8 ? '#dc2626' : (h.severity>=6 ? '#f59e0b' : '#0284c7');
+  var icon = L.divIcon({className:'', iconSize:[32,32], iconAnchor:[16,16], html:
+    '<div style="background:'+color+';color:#fff;border:3px solid #fff;border-radius:18px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font:700 13px sans-serif;box-shadow:0 2px 6px rgba(0,0,0,.4)">'+h.count+'</div>'});
+  var m = L.marker([h.latitude, h.longitude], {icon:icon}).addTo(map);
+  m.bindPopup('<b>'+esc(h.label)+'</b><br/>'+h.count+' open \u00b7 severity '+(h.severity||'-')+
+    '<a class="dir-btn" href="#" onclick="dir('+i+');return false;">Get directions \u203a</a>');
+  bounds.push([h.latitude, h.longitude]);
+});
+if (bounds.length > 1) { map.fitBounds(bounds, {padding:[45,45], maxZoom:14}); }
+else if (bounds.length === 1) { map.setView(bounds[0], 14); }
+else { map.setView([19.076, 72.8777], 12); }
+function dir(i){ var h = hs[i]; ${dirAction} }
+</script></body></html>`;
+}
+
+// Static fallback (used if a map ever fails to load).
 export function HotspotFallback({ hotspots, note }: { hotspots: Hotspot[]; note?: string }) {
   return (
     <View testID="hotspot-map" style={styles.card}>
-      <View style={styles.mapGrid}>
-        <View style={styles.roadA} />
-        <View style={styles.roadB} />
-        {hotspots.map((h, i) => (
-          <View key={`${h.label}-${i}`} style={[styles.pin, { left: `${18 + (i * 19) % 67}%`, top: `${22 + (i * 23) % 52}%` }]}>
-            <View style={[styles.pinBubble, { backgroundColor: severityColor(h.severity) }]}><Feather name="map-pin" size={15} color="#fff" /></View>
-            <Text style={styles.pinCount}>{h.count}</Text>
-          </View>
-        ))}
-        {note ? <View style={styles.noteChip}><Feather name="smartphone" size={12} color="#475569" /><Text style={styles.noteText}>{note}</Text></View> : null}
-      </View>
       <View style={styles.list}>
         {hotspots.length === 0 ? (
           <Text style={styles.emptyText}>No active hotspots right now.</Text>
@@ -53,23 +78,17 @@ export function HotspotFallback({ hotspots, note }: { hotspots: Hotspot[]; note?
             </Pressable>
           </View>
         ))}
+        {note ? <Text style={styles.note}>{note}</Text> : null}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: "#dbeafe", borderRadius: 19, overflow: "hidden", borderWidth: 1, borderColor: "#bfdbfe" },
-  mapGrid: { height: 176, backgroundColor: "#e0f2fe", position: "relative", overflow: "hidden" },
-  roadA: { position: "absolute", width: "150%", height: 24, backgroundColor: "#fff", top: 70, left: -40, transform: [{ rotate: "-12deg" }] },
-  roadB: { position: "absolute", width: "125%", height: 18, backgroundColor: "#fff", top: 105, left: -30, transform: [{ rotate: "32deg" }] },
-  pin: { position: "absolute", alignItems: "center" },
-  pinBubble: { width: 31, height: 31, borderRadius: 16, borderWidth: 3, borderColor: "#fff", alignItems: "center", justifyContent: "center" },
-  pinCount: { color: "#0f172a", fontSize: 10, fontWeight: "900", marginTop: 2, backgroundColor: "rgba(255,255,255,.85)", paddingHorizontal: 4, borderRadius: 5 },
-  noteChip: { position: "absolute", bottom: 10, left: 10, right: 10, backgroundColor: "rgba(255,255,255,.92)", borderRadius: 9, paddingVertical: 6, paddingHorizontal: 9, flexDirection: "row", alignItems: "center", gap: 6 },
-  noteText: { color: "#475569", fontSize: 11, fontWeight: "700", flex: 1 },
+  card: { backgroundColor: "#fff", borderRadius: 19, overflow: "hidden", borderWidth: 1, borderColor: "#bfdbfe" },
   list: { backgroundColor: "#fff", padding: 8 },
   emptyText: { color: "#94a3b8", fontSize: 13, padding: 12, textAlign: "center" },
+  note: { color: "#94a3b8", fontSize: 11, padding: 10, textAlign: "center" },
   row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: "#f1f5f9" },
   dot: { width: 10, height: 10, borderRadius: 5 },
   rowLabel: { color: "#0f172a", fontWeight: "800", fontSize: 13 },

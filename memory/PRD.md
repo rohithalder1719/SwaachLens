@@ -51,6 +51,11 @@ SwachhLens is an AI-powered waste response decision support system. Citizens rep
 - Graceful fallback on web and inside Expo Go (native maps are disabled there): a stylized hotspot board plus a tappable hotspot list where each row has its own Directions button — directions work everywhere.
 - Android builds read the Google Maps key from `GOOGLE_MAPS_API_KEY` via `app.config.js`; iOS uses Apple Maps (no key).
 
+## Implemented (2026-08-18 · Leaflet map, no key, Expo Go compatible)
+- Replaced `react-native-maps` with a real interactive **Leaflet + OpenStreetMap** map rendered inside a WebView (native) / iframe (web). It needs no API key and works in Expo Go, web, and native builds.
+- Severity-colored clustered pins with counts; tapping a pin opens a popup with "Get directions" that launches the device's maps app (Apple/Google) on native or a new Google Maps tab on web.
+- Removed the Google Maps key requirement and the maps config plugin (`app.config.js` is now a passthrough); `GOOGLE_MAPS_API_KEY` env no longer needed.
+
 ## Prioritized backlog
 - P1: Replace the illustrative hotspot map with react-native-maps (clustered pins, routes).
 - P1: Replace the in-app urgent banner with real push notifications on a native build.
