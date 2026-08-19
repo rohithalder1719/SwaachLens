@@ -15,16 +15,18 @@ from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
+from google.oauth2 import id_token
+from google.auth.transport import requests
+from google import genai
+from google.genai import types
+import base64
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 client = AsyncIOMotorClient(os.environ["MONGO_URL"])
 db = client[os.environ["DB_NAME"]]
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 STAFF_INVITE_CODE = os.environ.get("STAFF_INVITE_CODE", "SWACHH2026")
-EMERGENT_SESSION_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data"
-
 app = FastAPI(title="SwachhLens API")
 api_router = APIRouter(prefix="/api")
 logger = logging.getLogger("swachhlens")
@@ -42,7 +44,6 @@ CATEGORIES = {
     "hazardous_waste": ("Hazardous waste", 10, "Escalate immediately to the safety response team"),
     "drain_blockage": ("Drain blockage", 9, "Escalate to drain response and road safety team"),
 }
-
 
 # ----------------------------- Models -----------------------------
 class SignupRequest(BaseModel):
@@ -189,32 +190,37 @@ def deterministic_analysis(category: str, description: str, duplicate: bool) -> 
 
 async def ai_analyze_image(image_base64: str, category: str, description: str, duplicate: bool) -> dict:
     fallback = deterministic_analysis(category, description, duplicate)
-    if not (image_base64 and EMERGENT_LLM_KEY):
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    if not (image_base64 and gemini_key):
         return fallback
     try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
-
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"waste-{uuid.uuid4().hex[:10]}",
-            system_message=(
-                "You are a municipal waste triage analyst. Look at the photo and classify the waste "
-                "for a city cleanup crew. Reply with STRICT JSON only, no markdown."
-            ),
-        ).with_model("gemini", "gemini-3-flash-preview")
-
+        client_genai = genai.Client(api_key=gemini_key)
+        
         prompt = (
-            "Analyze this waste scene. The citizen tagged it as category '" + category + "'. "
-            "Note: '" + (description or "none") + "'. "
+            f"Analyze this waste scene. The citizen tagged it as category '{category}'. "
+            f"Note: '{description or 'none'}'. "
             "Return JSON with exactly these keys: "
             '{"waste_type": short label, "severity": integer 1-10 (10=hazardous/urgent), '
             '"volume": one of "Small"|"Medium"|"Large"|"Very large", '
             '"recommended_action": one concise sentence for the crew, '
             '"summary": one short sentence describing what is visible}.'
         )
-        message = UserMessage(text=prompt, file_contents=[ImageContent(image_base64=image_base64)])
-        raw = await chat.send_message(message)
-        text = raw if isinstance(raw, str) else str(raw)
+        
+        response = client_genai.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=[
+                types.Part.from_bytes(
+                    data=base64.b64decode(image_base64),
+                    mime_type='image/jpeg',
+                ),
+                prompt,
+            ],
+            config=types.GenerateContentConfig(
+                system_instruction="You are a municipal waste triage analyst. Look at the photo and classify the waste for a city cleanup crew. Reply with STRICT JSON only, no markdown."
+            )
+        )
+        
+        text = response.text if isinstance(response.text, str) else str(response.text)
         match = re.search(r"\{.*\}", text, re.DOTALL)
         if not match:
             return fallback
@@ -277,23 +283,31 @@ async def login(payload: LoginRequest):
 
 @api_router.post("/auth/session")
 async def google_session(payload: SessionRequest):
-    async with httpx.AsyncClient(timeout=20) as http:
-        resp = await http.get(EMERGENT_SESSION_URL, headers={"X-Session-ID": payload.session_id})
-    if resp.status_code != 200:
-        raise HTTPException(401, "Invalid or expired session")
-    data = resp.json()
-    email = (data.get("email") or "").lower().strip()
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            payload.session_id, 
+            requests.Request(), 
+            os.environ.get("GOOGLE_CLIENT_ID")
+        )
+        email = idinfo.get("email").lower().strip()
+        name = idinfo.get("name")
+        picture = idinfo.get("picture")
+    except ValueError:
+        raise HTTPException(401, "Invalid or expired Google token")
+    
     if not email:
-        raise HTTPException(401, "Session did not return an email")
+        raise HTTPException(401, "Token did not return an email")
+        
     user = await db.users.find_one({"email": email}, {"_id": 0})
+    
     if not user:
         user = {
             "user_id": f"user_{uuid.uuid4().hex[:12]}",
             "email": email,
-            "name": data.get("name") or email.split("@")[0],
+            "name": name or email.split("@")[0],
             "role": "citizen",
             "password_hash": None,
-            "picture": data.get("picture"),
+            "picture": picture,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
         await db.users.insert_one(user.copy())
@@ -416,7 +430,7 @@ async def dashboard(user: dict = Depends(require_staff)):
     for d in open_reports:
         lat = float(d.get("latitude", 19.076))
         lng = float(d.get("longitude", 72.8777))
-        key = (round(lat, 3), round(lng, 3))  # ~110m geo-cell cluster
+        key = (round(lat, 3), round(lng, 3))
         item = buckets.get(key)
         if not item:
             item = {"label": d.get("location_label") or "Unmapped area", "count": 0,

@@ -1,7 +1,8 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import * as Haptics from "expo-haptics";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Image, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { useAuth } from "@/src/auth/AuthContext";
@@ -35,6 +36,7 @@ function MainApp() {
   const [dashboard, setDashboard] = useState({ total: 0, open: 0, urgent: 0, resolved: 0, hotspots: [] as { label: string; count: number; latitude: number; longitude: number; severity?: number }[] });
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -49,8 +51,36 @@ function MainApp() {
 
   return <SafeAreaView style={styles.safe}><View style={styles.app}>
     <View style={styles.topbar}><View style={{ flex: 1 }}><Text style={styles.eyebrow}>SWACHHLENS / {role === "staff" ? "OPERATIONS" : "CITIZEN"}</Text><Text style={styles.title} numberOfLines={1}>{role === "staff" ? "Clear smarter today." : `Hi ${user!.name.split(" ")[0]}.`}</Text></View><Pressable testID="profile-button" style={styles.avatar} onPress={() => setProfileOpen(true)}><Text style={styles.avatarText}>{user!.name.charAt(0).toUpperCase()}</Text></Pressable></View>
-    <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {role === "citizen" ? <CitizenHome reports={reports} tab={tab} onReport={() => setTab("report")} onSelectReport={setSelectedReport} /> : <StaffHome dashboard={dashboard} reports={reports} onRefresh={refresh} tab={tab} onSelectReport={setSelectedReport} />}
+    <ScrollView 
+      ref={scrollViewRef}
+      contentContainerStyle={styles.content} 
+      showsVerticalScrollIndicator={false}
+    >
+      {role === "citizen" ? (
+        <CitizenHome 
+          reports={reports} 
+          tab={tab} 
+          onReport={() => { 
+            setTab("report"); 
+            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+          }} 
+          onSelectReport={(r) => {
+            setSelectedReport(r);
+            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+          }} 
+        />
+      ) : (
+        <StaffHome 
+          dashboard={dashboard} 
+          reports={reports} 
+          onRefresh={refresh} 
+          tab={tab} 
+          onSelectReport={(r) => {
+            setSelectedReport(r);
+            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+          }} 
+        />
+      )}
       {tab === "report" && role === "citizen" && <ReportComposer onDone={() => { setTab("home"); refresh(); }} onCancel={() => setTab("home")} />}
       {selectedReport && (role === "staff"
         ? <ReportDetail report={selectedReport} onClose={() => setSelectedReport(null)} onSaved={(u) => { setSelectedReport(u); refresh(); }} />
@@ -85,14 +115,43 @@ function CitizenHome({ reports, tab, onReport, onSelectReport }: { reports: Repo
   </>;
 }
 
-function StaffHome({ dashboard, reports, onRefresh, tab, onSelectReport }: { dashboard: any; reports: Report[]; onRefresh: () => void; tab: string; onSelectReport: (report: Report) => void }) { const urgent = useMemo(() => reports.filter(r => r.severity >= 8 && r.status !== "Resolved"), [reports]); if (tab === "queue") return <QueueView reports={reports} urgent={urgent} onSelectReport={onSelectReport} />; if (tab === "teams") return <TeamsView />; return <>
-  <View style={styles.staffBanner}><View><Text style={styles.cardKicker}>LIVE OPERATIONS</Text><Text style={styles.staffBannerTitle}>{dashboard.open} open reports</Text><Text style={styles.staffBannerBody}>{dashboard.urgent} need urgent attention</Text></View><Pressable testID="refresh-dashboard" onPress={onRefresh} style={styles.refresh}><Feather name="refresh-cw" size={19} color="#fff" /></Pressable></View>
-  {urgent.length > 0 && <Pressable testID="urgent-alert" onPress={() => onSelectReport(urgent[0])} style={styles.alertBanner}><View style={styles.alertIcon}><Feather name="bell" size={18} color="#b91c1c" /></View><View style={{ flex: 1 }}><Text style={styles.alertTitle}>{urgent.length} urgent signal{urgent.length > 1 ? "s" : ""} need attention</Text><Text style={styles.alertBody}>Tap to review and dispatch a response.</Text></View><Feather name="chevron-right" size={18} color="#b91c1c" /></Pressable>}
-  <View style={styles.statsGrid}><Metric value={dashboard.total} label="Total signals" icon="inbox" /><Metric value={dashboard.urgent} label="Urgent" icon="alert-triangle" danger /><Metric value={dashboard.resolved} label="Resolved" icon="check-circle" /><Metric value={dashboard.hotspots.length} label="Hotspots" icon="map" /></View>
-  <SectionTitle title="Live hotspot map" action="Updated just now" />
-  <HotspotMap hotspots={dashboard.hotspots} />
-  <SectionTitle title="Priority queue" action="Sort: severity" />{urgent.length === 0 && reports.length === 0 ? <EmptyState title="No reports yet" body="Citizen signals will appear here as they come in." /> : (urgent.length ? urgent : reports).slice(0, 5).map(report => <ReportRow key={report.id} report={report} staff onPress={() => onSelectReport(report)} />)}
-</>; }
+function StaffHome({ dashboard, reports, onRefresh, tab, onSelectReport }: { dashboard: any; reports: Report[]; onRefresh: () => void; tab: string; onSelectReport: (report: Report) => void }) { 
+  const { authFetch } = useAuth();
+  const [liveReports, setLiveReports] = useState<Report[]>(reports);
+
+  useEffect(() => { setLiveReports(reports); }, [reports]);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await authFetch("/reports");
+        if (response.ok) {
+          const freshData = await response.json();
+          if (freshData.length > liveReports.length) {
+            try {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } catch (e) {}
+            setLiveReports(freshData);
+            onRefresh();
+          }
+        }
+      } catch (e) {}
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [liveReports, authFetch, onRefresh]);
+
+  const urgent = useMemo(() => liveReports.filter(r => r.severity >= 8 && r.status !== "Resolved"), [liveReports]); 
+  if (tab === "queue") return <QueueView reports={liveReports} urgent={urgent} onSelectReport={onSelectReport} />; 
+  if (tab === "teams") return <TeamsView />; 
+  return <>
+    <View style={styles.staffBanner}><View><Text style={styles.cardKicker}>LIVE OPERATIONS</Text><Text style={styles.staffBannerTitle}>{dashboard.open} open reports</Text><Text style={styles.staffBannerBody}>{dashboard.urgent} need urgent attention</Text></View><Pressable testID="refresh-dashboard" onPress={onRefresh} style={styles.refresh}><Feather name="refresh-cw" size={19} color="#fff" /></Pressable></View>
+    {urgent.length > 0 && <Pressable testID="urgent-alert" onPress={() => onSelectReport(urgent[0])} style={styles.alertBanner}><View style={styles.alertIcon}><Feather name="bell" size={18} color="#b91c1c" /></View><View style={{ flex: 1 }}><Text style={styles.alertTitle}>{urgent.length} urgent signal{urgent.length > 1 ? "s" : ""} need attention</Text><Text style={styles.alertBody}>Tap to review and dispatch a response.</Text></View><Feather name="chevron-right" size={18} color="#b91c1c" /></Pressable>}
+    <View style={styles.statsGrid}><Metric value={dashboard.total} label="Total signals" icon="inbox" /><Metric value={dashboard.urgent} label="Urgent" icon="alert-triangle" danger /><Metric value={dashboard.resolved} label="Resolved" icon="check-circle" /><Metric value={dashboard.hotspots.length} label="Hotspots" icon="map" /></View>
+    <SectionTitle title="Live hotspot map" action="Updated just now" />
+    <HotspotMap hotspots={dashboard.hotspots} />
+    <SectionTitle title="Priority queue" action="Sort: severity" />{urgent.length === 0 && liveReports.length === 0 ? <EmptyState title="No reports yet" body="Citizen signals will appear here as they come in." /> : (urgent.length ? urgent : liveReports).slice(0, 5).map(report => <ReportRow key={report.id} report={report} staff onPress={() => onSelectReport(report)} />)}
+  </>; 
+}
 function QueueView({ reports, urgent, onSelectReport }: { reports: Report[]; urgent: Report[]; onSelectReport: (report: Report) => void }) { return <><View style={styles.queueHeader}><Text style={styles.cardKicker}>OPERATIONS QUEUE</Text><Text style={styles.queueTitle}>Every signal, ranked.</Text><Text style={styles.queueBody}>Severity combines waste volume, location sensitivity, frequency, and age.</Text></View><SectionTitle title="Needs action" action={`${urgent.length} urgent`} />{(urgent.length ? urgent : reports).map(report => <ReportRow key={report.id} report={report} staff onPress={() => onSelectReport(report)} />)}{!reports.length && <EmptyState title="Queue is clear" body="New citizen signals will be prioritized here." />}</>; }
 function TeamsView() { return <><View style={styles.queueHeader}><Text style={styles.cardKicker}>FIELD NETWORK</Text><Text style={styles.queueTitle}>Ready to respond.</Text><Text style={styles.queueBody}>Coordinate every municipal sanitation crew from one place.</Text></View><SectionTitle title="Response teams" action="3 active" />{[["North Zone sanitation", "Mini truck · Available", "#15803d"], ["Drain response unit", "2 workers · En route", "#0284c7"], ["Recycling & e-waste unit", "Municipal · Available", "#0f766e"]].map(([name, detail, color]) => <View key={name} style={styles.teamRow}><View style={[styles.teamIcon, { backgroundColor: `${color}18` }]}><Feather name="users" size={18} color={color} /></View><View style={{ flex: 1 }}><Text style={styles.teamName}>{name}</Text><Text style={styles.teamDetail}>{detail}</Text></View><View style={[styles.liveDot, { backgroundColor: color }]} /></View>)}</>; }
 function SectionTitle({ title, action }: { title: string; action: string }) { return <View style={styles.sectionTitle}><Text style={styles.sectionText}>{title}</Text><Text style={styles.action}>{action}</Text></View> }
@@ -136,16 +195,67 @@ function ReportDetail({ report, onClose, onSaved }: { report: Report; onClose: (
   const [photo, setPhoto] = useState(report.verification_image_base64 || "");
   const [saving, setSaving] = useState(false);
   const chooseVerification = async () => { const perm = await ImagePicker.requestCameraPermissionsAsync(); if (!perm.granted) { Alert.alert("Camera needed", "Allow camera access to capture cleanup evidence.", perm.canAskAgain ? undefined : [{ text: "Open settings", onPress: () => import("react-native").then(m => m.Linking.openSettings()) }, { text: "Cancel" }]); return; } const result = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], base64: true, quality: 0.65 }); if (!result.canceled) setPhoto(result.assets[0].base64 || ""); };
-  const update = async (status: string) => { if (status === "Resolved" && !photo) return Alert.alert("Add verification evidence", "Capture a cleanup photo before marking this report resolved."); setSaving(true); try { const response = await authFetch(`/reports/${report.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, assigned_team: team, vehicle, verification_image_base64: photo || undefined }) }); if (!response.ok) throw new Error(); onSaved(await response.json()); Alert.alert(status === "Resolved" ? "Cleanup verified" : "Response updated", status === "Resolved" ? "This report is now closed with field evidence." : `Report marked ${status}.`); } catch { Alert.alert("Could not update", "Please check your connection and try again."); } finally { setSaving(false); } };
+  
+  const update = async (status: string) => { 
+    if (status === "Resolved" && !photo) return Alert.alert("Add verification evidence", "Capture a cleanup photo before marking this report resolved."); 
+    setSaving(true); 
+    try { 
+      const response = await authFetch(`/reports/${report.id}`, { 
+        method: "PATCH", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ status, assigned_team: team, vehicle, verification_image_base64: photo || undefined }) 
+      }); 
+      if (!response.ok) throw new Error(); 
+      
+      const updatedReport = await response.json();
+      onSaved(updatedReport); 
+
+      if (status === "Resolved") {
+        setPhoto(""); 
+      }
+
+      Alert.alert(status === "Resolved" ? "Cleanup verified" : "Response updated", status === "Resolved" ? "This report is now closed with field evidence." : `Report marked ${status}.`); 
+    } catch { 
+      Alert.alert("Could not update", "Please check your connection and try again."); 
+    } finally { 
+      setSaving(false); 
+    } 
+  };
+
   return <View testID="report-detail" style={styles.detailCard}><View style={styles.detailHead}><View><Text style={styles.cardKicker}>RESPONSE ACTIONS</Text><Text style={styles.detailTitle}>{report.category_label}</Text></View><Pressable testID="close-detail" onPress={onClose}><Feather name="x" size={22} color="#475569" /></Pressable></View><Text style={styles.detailLocation}><Feather name="map-pin" size={13} color={GREEN} /> {report.location_label}</Text>{report.ai_summary ? <View style={styles.aiCard}><Feather name="zap" size={15} color="#a16207" /><Text style={styles.aiText}>{report.ai_summary}</Text></View> : null}<View style={styles.detailScore}><Text style={styles.detailScoreValue}>{report.severity}/10</Text><View style={{ flex: 1 }}><Text style={styles.detailScoreLabel}>SEVERITY SCORE</Text><Text style={styles.detailScoreBody}>{report.volume} volume · {report.recommended_action}</Text></View></View><Text style={styles.inputLabel}>Progress</Text><StatusTimeline report={report} /><Text style={styles.inputLabel}>Assign response team</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>{["North Zone sanitation", "Drain response unit", "Recycling & e-waste unit"].map(option => <Pressable testID={`team-${option}`} key={option} onPress={() => setTeam(option)} style={[styles.category, team === option && styles.categorySelected]}><Feather name="users" size={15} color={team === option ? "#fff" : GREEN} /><Text style={[styles.categoryText, team === option && styles.categoryTextSelected]}>{option}</Text></Pressable>)}</ScrollView><Text style={styles.inputLabel}>Vehicle</Text><View style={styles.vehicleRow}>{["Mini truck", "Tipper", "No vehicle"].map(option => <Pressable testID={`vehicle-${option}`} key={option} onPress={() => setVehicle(option)} style={[styles.vehicle, vehicle === option && styles.vehicleSelected]}><Feather name="truck" size={15} color={vehicle === option ? "#fff" : GREEN} /><Text style={[styles.vehicleText, vehicle === option && styles.vehicleTextSelected]}>{option}</Text></Pressable>)}</View><Pressable testID="verification-photo" onPress={chooseVerification} style={styles.verifyBox}>{photo ? <Image source={{ uri: `data:image/jpeg;base64,${photo}` }} style={styles.verifyPreview} /> : <><View style={styles.cameraCircle}><Feather name="check-circle" size={23} color={GREEN} /></View><Text style={styles.captureTitle}>Add cleanup verification</Text><Text style={styles.captureHint}>Capture the cleared site before closing</Text></>}</Pressable><View style={styles.actionRow}><Pressable testID="assign-report" onPress={() => update("Assigned")} disabled={saving} style={styles.assignButton}><Feather name="send" size={16} color={GREEN} /><Text style={styles.assignText}>Assign</Text></Pressable><Pressable testID="progress-report" onPress={() => update("In Progress")} disabled={saving} style={styles.assignButton}><Feather name="clock" size={16} color={GREEN} /><Text style={styles.assignText}>In progress</Text></Pressable><Pressable testID="resolve-report" onPress={() => update("Resolved")} disabled={saving} style={styles.resolveButton}><Feather name="check" size={16} color="#fff" /><Text style={styles.resolveText}>Verify</Text></Pressable></View></View>;
 }
 
 function ReportComposer({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
   const { authFetch } = useAuth();
-  const [category, setCategory] = useState(""); const [description, setDescription] = useState(""); const [photo, setPhoto] = useState<string | null>(null);
-  const [coords, setCoords] = useState({ latitude: 19.076, longitude: 72.8777, label: "Location unavailable" }); const [saving, setSaving] = useState(false);
+  const [category, setCategory] = useState(""); 
+  const [description, setDescription] = useState(""); 
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [coords, setCoords] = useState({ latitude: 19.076, longitude: 72.8777, label: "Fetching location..." }); 
+  const [saving, setSaving] = useState(false);
   const [result, setResult] = useState<Report | null>(null);
-  useEffect(() => { (async () => { const permission = await Location.requestForegroundPermissionsAsync(); if (permission.status === "granted") { const loc = await Location.getCurrentPositionAsync({}); setCoords({ latitude: loc.coords.latitude, longitude: loc.coords.longitude, label: "Live location captured" }); } })(); }, []);
+
+  useEffect(() => { 
+    (async () => { 
+      try {
+        const permission = await Location.requestForegroundPermissionsAsync(); 
+        if (permission.status === "granted") { 
+          const loc = await Location.getCurrentPositionAsync({ 
+            accuracy: Location.Accuracy.Balanced
+          }); 
+          setCoords({ 
+            latitude: loc.coords.latitude, 
+            longitude: loc.coords.longitude, 
+            label: "Live location captured" 
+          }); 
+        } else {
+          setCoords(prev => ({ ...prev, label: "Permission denied" }));
+        }
+      } catch (error) {
+        setCoords({ latitude: 19.076, longitude: 72.8777, label: "Default location (GPS timeout)" });
+      }
+    })(); 
+  }, []);
+
   const capture = async () => { const perm = await ImagePicker.requestCameraPermissionsAsync(); if (!perm.granted) { Alert.alert("Camera needed", "Allow camera access to photograph the issue.", perm.canAskAgain ? undefined : [{ text: "Open settings", onPress: () => import("react-native").then(m => m.Linking.openSettings()) }, { text: "Cancel" }]); return; } const r = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], base64: true, quality: 0.65 }); if (!r.canceled) setPhoto(r.assets[0].base64 || null); };
   const submit = async () => { if (!category) return Alert.alert("Choose a category", "This helps the response team plan the right action."); setSaving(true); try { const response = await authFetch(`/reports`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category, description, latitude: coords.latitude, longitude: coords.longitude, location_label: coords.label, image_base64: photo }) }); if (!response.ok) throw new Error(); setResult(await response.json()); } catch { Alert.alert("Could not send", "Please check your connection and try again."); } finally { setSaving(false); } };
   if (result) return <View style={styles.composer}><View style={styles.successIcon}><Feather name="check" size={30} color="#fff" /></View><Text style={styles.successTitle}>Signal received</Text><Text style={styles.successBody}>{result.ai_powered ? "SwachhLens AI analyzed your photo:" : "Your report is in the response queue:"}</Text>{result.ai_summary ? <View style={styles.aiCard}><Feather name="zap" size={15} color="#a16207" /><Text style={styles.aiText}>{result.ai_summary}</Text></View> : null}<View style={styles.resultRow}><Feather name="tag" size={15} color={GREEN} /><Text style={styles.resultText}>{result.category_label}</Text></View><View style={styles.resultRow}><Feather name="activity" size={15} color="#dc2626" /><Text style={styles.resultText}>Severity {result.severity}/10 · {result.volume} volume</Text></View><View style={styles.resultRow}><Feather name="navigation" size={15} color={GREEN} /><Text style={styles.resultText}>{result.recommended_action}</Text></View><Pressable testID="composer-done" onPress={onDone} style={styles.primaryButton}><Text style={styles.primaryText}>Done</Text><Feather name="arrow-right" size={19} color="#fff" /></Pressable></View>;
